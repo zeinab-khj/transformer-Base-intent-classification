@@ -1,35 +1,20 @@
-import torch
-from torch.utils.data import Dataset
+from datasets import Dataset
+from datasets import ClassLabel
 
-class IntentDataset(Dataset):
+train_dataset = Dataset.from_pandas(train_df)
 
-    def __init__(
-        self,
-        texts,
-        labels,
-        tokenizer,
-        max_length=64
-    ):
-        self.texts = texts
-        self.labels = labels
-        self.tokenizer = tokenizer
-        self.max_length = max_length
 
-    def __len__(self):
-        return len(self.texts)
+num_labels = train_df['label'].nunique()
 
-    def __getitem__(self, idx):
+train_dataset = train_dataset.cast_column(
+    "label", ClassLabel(num_classes=num_labels)
+)
 
-        encoded = self.tokenizer(
-            self.texts[idx],
-            padding="max_length",
-            truncation=True,
-            max_length=self.max_length,
-            return_tensors="pt"
-        )
+dataset_split = train_dataset.train_test_split(
+    test_size=0.1,
+    seed=42,
+    stratify_by_column="label"
+)
 
-        return {
-            "input_ids": encoded["input_ids"].squeeze(0),
-            "attention_mask": encoded["attention_mask"].squeeze(0),
-            "labels": torch.tensor(self.labels[idx])
-        }
+dataset_split["validation"] = dataset_split["test"]
+del dataset_split["test"]
