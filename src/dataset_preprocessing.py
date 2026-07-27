@@ -1,6 +1,7 @@
 from datasets import Dataset
 from datasets import ClassLabel
-from config import TRAIN_DATA_PATH, VALID_DATA_PATH
+from transformers import AutoTokenizer
+from config import TRAIN_DATA_PATH, VALID_DATA_PATH, MODEL_NAME
     
 
 train_dataset = Dataset.from_pandas(train_df)
@@ -21,8 +22,15 @@ dataset_split = train_dataset.train_test_split(
 dataset_split["validation"] = dataset_split["test"]
 del dataset_split["test"]
 
-train_dataset = dataset_split["train"]
-valid_dataset = dataset_split["validation"]
+train = dataset_split["train"]
+valid = dataset_split["validation"]
+
+tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
+def tokenize_function(examples):
+    return tokenizer(examples["text"], truncation=True)
+
+train_dataset = train.map(tokenize_function, batched=True)
+valid_dataset = valid.map(tokenize_function, batched=True)
 
 train_dataset.save_to_disk(TRAIN_DATA_PATH)
 
