@@ -1,5 +1,7 @@
 from datasets import Dataset
 from datasets import ClassLabel
+from config import TRAIN_DATA_PATH, VALID_DATA_PATH
+    
 
 train_dataset = Dataset.from_pandas(train_df)
 
@@ -19,6 +21,9 @@ dataset_split = train_dataset.train_test_split(
 dataset_split["validation"] = dataset_split["test"]
 del dataset_split["test"]
 
-dataset_split.save_to_disk(
-    "/drive/MyDrive/dataset_split"
-)
+train_dataset = dataset_split["train"]
+valid_dataset = dataset_split["validation"]
+
+train_dataset.save_to_disk(TRAIN_DATA_PATH)
+
+valid_dataset.save_to_disk(VALID_DATA_PATH)
