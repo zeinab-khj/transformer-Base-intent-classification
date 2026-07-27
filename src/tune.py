@@ -4,7 +4,9 @@ import torch
 from transformers import (
     AutoModelForSequenceClassification,
     TrainingArguments,
-    Trainer
+    Trainer,
+    DataCollatorWithPadding,
+    AutoTokenizer
 )
 
 from datasets import load_from_disk
@@ -27,6 +29,12 @@ from config import (
 train_dataset = load_from_disk(TRAIN_DATA_PATH)
 valid_dataset = load_from_disk(VALID_DATA_PATH)
 
+tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
+def tokenize_function(examples):
+    return tokenizer(examples["text"], truncation=True)
+
+tokenized_train_dataset = train_dataset.map(tokenize_function, batched=True)
+tokenized_valid_dataset = valid_dataset.map(tokenize_function, batched=True)
 
 
 def objective(trial):
@@ -65,7 +73,7 @@ def objective(trial):
 
         per_device_eval_batch_size=BATCH_SIZE,
 
-        evaluation_strategy="epoch",
+        eval_strategy="epoch",
 
         save_strategy="epoch",
 
@@ -75,20 +83,23 @@ def objective(trial):
 
         greater_is_better=True,
 
-        logging_strategy="epoch",
+        logging_steps=500,
 
         report_to="none",
 
         fp16=torch.cuda.is_available()
     )
 
+    # Initialize Data Collator
+    data_collator = DataCollatorWithPadding(tokenizer=tokenizer)
 
     trainer = Trainer(
         model=model,
         args=training_args,
-        train_dataset=train_dataset,
-        eval_dataset=valid_dataset,
-        compute_metrics=compute_metrics
+        train_dataset=tokenized_train_dataset,
+        eval_dataset=tokenized_valid_dataset,
+        compute_metrics=compute_metrics,
+        data_collator=data_collator 
     )
 
 
