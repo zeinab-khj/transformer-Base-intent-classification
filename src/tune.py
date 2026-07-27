@@ -29,12 +29,7 @@ from config import (
 train_dataset = load_from_disk(TRAIN_DATA_PATH)
 valid_dataset = load_from_disk(VALID_DATA_PATH)
 
-tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
-def tokenize_function(examples):
-    return tokenizer(examples["text"], truncation=True)
 
-tokenized_train_dataset = train_dataset.map(tokenize_function, batched=True)
-tokenized_valid_dataset = valid_dataset.map(tokenize_function, batched=True)
 
 
 def objective(trial):
@@ -96,8 +91,8 @@ def objective(trial):
     trainer = Trainer(
         model=model,
         args=training_args,
-        train_dataset=tokenized_train_dataset,
-        eval_dataset=tokenized_valid_dataset,
+        train_dataset=train_dataset,
+        eval_dataset=valid_dataset,
         compute_metrics=compute_metrics,
         data_collator=data_collator 
     )
