@@ -59,3 +59,8 @@ NUM_EPOCHS = 5
 # =========================
 
 METRIC_FOR_BEST_MODEL = "macro_f1"
+
+REPORT_DIR = ROOT_DIR / "reports"
+PLOT_DIR = REPORT_DIR / "plots"
+
+PLOT_DIR.mkdir(parents=True, exist_ok=True)
