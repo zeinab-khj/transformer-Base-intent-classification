@@ -18,3 +18,7 @@ dataset_split = train_dataset.train_test_split(
 
 dataset_split["validation"] = dataset_split["test"]
 del dataset_split["test"]
+
+dataset_split.save_to_disk(
+    "/drive/MyDrive/dataset_split"
+)
