@@ -179,18 +179,18 @@ def main():
 
     df["predicted_label"] = predicted_labels
 
+    
+    label_mapping = (
+        df[
+            ["true_label", "label_text"]
+        ]
+        .drop_duplicates()
+        .set_index("true_label")["label_text"]
+        .to_dict())
 
-    id2label = model.config.id2label
+    df["true_class"] = df["true_label"].map(label_mapping)
 
-
-    df["true_class"] = df["true_label"].map(
-        id2label
-    )
-
-    df["predicted_class"] = df["predicted_label"].map(
-        id2label
-    )
-
+    df["predicted_class"] = df["predicted_label"].map(label_mapping)
 
     df.to_csv(
         REPORT_DIR / "predictions.csv",
