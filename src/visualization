@@ -1,0 +1,262 @@
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+
+from pathlib import Path
+
+from config import REPORT_DIR
+
+
+REPORT_DIR = Path("/drive/MyDrive/Start_LLM/Report_Result")
+
+PLOT_DIR = REPORT_DIR / "plots"
+PLOT_DIR.mkdir(
+    parents=True,
+    exist_ok=True
+)
+
+
+# -----------------------
+# Load files
+# -----------------------
+
+report_df = pd.read_csv(
+    REPORT_DIR / "classification_report.csv",
+    index_col=0
+)
+
+
+pred_df = pd.read_csv(
+    REPORT_DIR / "predictions.csv"
+)
+
+
+cm = np.load(
+    REPORT_DIR / "confusion_matrix.npy"
+)
+
+
+# -----------------------
+# Keep only real classes
+# -----------------------
+
+class_df = report_df[
+    report_df["support"].notna()
+]
+
+
+# remove averages
+class_df = class_df[
+    ~class_df.index.isin(
+        [
+            "accuracy",
+            "macro avg",
+            "weighted avg"
+        ]
+    )
+]
+
+
+# -----------------------
+# F1 Distribution
+# -----------------------
+
+plt.figure(figsize=(8,5))
+
+plt.hist(
+    class_df["f1-score"],
+    bins=20
+)
+
+plt.xlabel("F1 Score")
+plt.ylabel("Number of Classes")
+plt.title("F1 Score Distribution")
+
+plt.savefig(
+    PLOT_DIR / "f1_distribution.png",
+    bbox_inches="tight"
+)
+
+plt.close()
+
+
+# -----------------------
+# Top Classes
+# -----------------------
+
+top = (
+    class_df
+    .sort_values(
+        "f1-score",
+        ascending=False
+    )
+    .head(10)
+)
+
+
+plt.figure(figsize=(8,5))
+
+plt.barh(
+    top.index,
+    top["f1-score"]
+)
+
+plt.xlabel("F1 Score")
+plt.title("Top 10 Classes")
+
+plt.gca().invert_yaxis()
+
+'''plt.savefig(
+    PLOT_DIR / "top_classes.png",
+    bbox_inches="tight"
+)'''
+
+plt.show()
+plt.close()
+
+
+# -----------------------
+# Worst Classes
+# -----------------------
+
+worst = (
+    class_df
+    .sort_values(
+        "f1-score"
+    )
+    .head(10)
+)
+
+
+plt.figure(figsize=(8,5))
+
+plt.barh(
+    worst.index,
+    worst["f1-score"]
+)
+
+plt.xlabel("F1 Score")
+plt.title("Worst 10 Classes")
+
+
+'''plt.savefig(
+    PLOT_DIR / "worst_classes.png",
+    bbox_inches="tight"
+)'''
+
+plt.show()
+plt.close()
+
+
+# -----------------------
+# Class Support
+# -----------------------
+
+support = (
+    class_df
+    .sort_values(
+        "support",
+        ascending=False
+    )
+    .head(20)
+)
+
+
+plt.figure(figsize=(10,6))
+
+plt.barh(
+    support.index,
+    support["support"]
+)
+
+plt.xlabel("Number of Samples")
+plt.title("Class Distribution (Top 20)")
+
+
+plt.gca().invert_yaxis()
+
+
+'''plt.savefig(
+    PLOT_DIR / "class_support.png",
+    bbox_inches="tight"
+)'''
+
+plt.show()
+plt.close()
+
+
+
+# -----------------------
+# Top Confusions
+# -----------------------
+
+confusions = []
+
+
+for i in range(len(cm)):
+
+    for j in range(len(cm)):
+
+        if i != j:
+
+            confusions.append(
+                (
+                    i,
+                    j,
+                    cm[i,j]
+                )
+            )
+
+
+confusions = sorted(
+    confusions,
+    key=lambda x:x[2],
+    reverse=True
+)[:10]
+
+
+labels = pred_df["true_class"].unique()
+
+
+confusion_df = pd.DataFrame(
+    confusions,
+    columns=[
+        "true",
+        "predicted",
+        "count"
+    ]
+)
+
+
+confusion_df["true"] = confusion_df["true"].apply(
+    lambda x: labels[x] if isinstance(x,int) else x
+)
+
+confusion_df["predicted"] = confusion_df["predicted"].apply(
+    lambda x: labels[x] if isinstance(x,int) else x
+)
+
+
+plt.figure(figsize=(10,6))
+
+plt.barh(
+    confusion_df["true"] + " → " + confusion_df["predicted"],
+    confusion_df["count"]
+)
+
+
+plt.xlabel("Number of Errors")
+plt.title("Top Confused Class Pairs")
+
+plt.gca().invert_yaxis()
+
+
+plt.savefig(
+    PLOT_DIR / "top_confusions.png",
+    bbox_inches="tight"
+)
+
+plt.close()
+
+
+print("Visualization completed.")
