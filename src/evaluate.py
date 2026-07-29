@@ -1,21 +1,26 @@
+import json
 import numpy as np
+import pandas as pd
+
+from pathlib import Path
+
+from datasets import load_from_disk
 
 from transformers import (
     AutoModelForSequenceClassification,
     AutoTokenizer,
+    DataCollatorWithPadding,
     Trainer
 )
-
-from datasets import load_from_disk
 
 from sklearn.metrics import (
     accuracy_score,
     f1_score,
+    precision_score,
+    recall_score,
     classification_report,
     confusion_matrix
 )
-
-import pandas as pd
 
 from config import (
     MODEL_DIR,
@@ -24,112 +29,210 @@ from config import (
 )
 
 
-# -------------------------
-# Load model and tokenizer
-# -------------------------
+def main():
 
-model = AutoModelForSequenceClassification.from_pretrained(
-    MODEL_DIR
-)
+    REPORT_DIR.mkdir(
+        parents=True,
+        exist_ok=True
+    )
 
-tokenizer = AutoTokenizer.from_pretrained(
-    MODEL_DIR
-)
+    # -----------------------
+    # Load model/tokenizer
+    # -----------------------
 
+    model = AutoModelForSequenceClassification.from_pretrained(
+        MODEL_DIR
+    )
 
-# -------------------------
-# Load validation dataset
-# -------------------------
-
-valid_dataset = load_from_disk(
-    VALID_DATA_PATH
-)
+    tokenizer = AutoTokenizer.from_pretrained(
+        MODEL_DIR
+    )
 
 
-# -------------------------
-# Prediction
-# -------------------------
+    # -----------------------
+    # Load validation dataset
+    # -----------------------
 
-trainer = Trainer(
-    model=model
-)
-
-
-predictions = trainer.predict(
-    valid_dataset
-)
+    valid_dataset = load_from_disk(
+        VALID_DATA_PATH
+    )
 
 
-logits = predictions.predictions
+    # -----------------------
+    # Data Collator
+    # -----------------------
 
-labels = predictions.label_ids
-
-
-predicted_labels = np.argmax(
-    logits,
-    axis=1
-)
+    data_collator = DataCollatorWithPadding(
+        tokenizer=tokenizer
+    )
 
 
-# -------------------------
-# Metrics
-# -------------------------
+    # -----------------------
+    # Trainer
+    # -----------------------
 
-accuracy = accuracy_score(
-    labels,
-    predicted_labels
-)
-
-macro_f1 = f1_score(
-    labels,
-    predicted_labels,
-    average="macro"
-)
-
-weighted_f1 = f1_score(
-    labels,
-    predicted_labels,
-    average="weighted"
-)
+    trainer = Trainer(
+        model=model,
+        data_collator=data_collator
+    )
 
 
-print(f"Accuracy: {accuracy:.4f}")
-print(f"Macro F1: {macro_f1:.4f}")
-print(f"Weighted F1: {weighted_f1:.4f}")
+    # -----------------------
+    # Prediction
+    # -----------------------
+
+    predictions = trainer.predict(
+        valid_dataset
+    )
+
+    logits = predictions.predictions
+
+    labels = predictions.label_ids
+
+    predicted_labels = np.argmax(
+        logits,
+        axis=1
+    )
 
 
-# -------------------------
-# Classification Report
-# -------------------------
+    # -----------------------
+    # Metrics
+    # -----------------------
 
-report = classification_report(
-    labels,
-    predicted_labels,
-    output_dict=True
-)
+    metrics = {
+
+        "accuracy": accuracy_score(
+            labels,
+            predicted_labels
+        ),
+
+        "macro_precision": precision_score(
+            labels,
+            predicted_labels,
+            average="macro",
+            zero_division=0
+        ),
+
+        "macro_recall": recall_score(
+            labels,
+            predicted_labels,
+            average="macro",
+            zero_division=0
+        ),
+
+        "macro_f1": f1_score(
+            labels,
+            predicted_labels,
+            average="macro"
+        ),
+
+        "weighted_f1": f1_score(
+            labels,
+            predicted_labels,
+            average="weighted"
+        )
+    }
 
 
-report_df = pd.DataFrame(
-    report
-).transpose()
+    with open(
+        REPORT_DIR / "metrics.json",
+        "w"
+    ) as f:
+
+        json.dump(
+            metrics,
+            f,
+            indent=4
+        )
 
 
-report_df.to_csv(
-    REPORT_DIR / "classification_report.csv"
-)
+    # -----------------------
+    # Classification Report
+    # -----------------------
+
+    report = classification_report(
+        labels,
+        predicted_labels,
+        output_dict=True,
+        zero_division=0
+    )
 
 
-# -------------------------
-# Confusion Matrix
-# -------------------------
-
-cm = confusion_matrix(
-    labels,
-    predicted_labels
-)
+    report_df = pd.DataFrame(
+        report
+    ).transpose()
 
 
-np.save(
-    REPORT_DIR / "confusion_matrix.npy",
-    cm
-)
+    report_df.to_csv(
+        REPORT_DIR / "classification_report.csv"
+    )
+
+
+    # -----------------------
+    # Predictions dataframe
+    # -----------------------
+
+    df = valid_dataset.to_pandas()
+
+
+    df["true_label"] = labels
+
+    df["predicted_label"] = predicted_labels
+
+
+    id2label = model.config.id2label
+
+
+    df["true_class"] = df["true_label"].map(
+        id2label
+    )
+
+    df["predicted_class"] = df["predicted_label"].map(
+        id2label
+    )
+
+
+    df.to_csv(
+        REPORT_DIR / "predictions.csv",
+        index=False
+    )
+
+
+    # -----------------------
+    # Misclassified samples
+    # -----------------------
+
+    errors = df[
+        df["true_label"] != df["predicted_label"]
+    ]
+
+
+    errors.to_csv(
+        REPORT_DIR / "misclassified_samples.csv",
+        index=False
+    )
+
+
+    # -----------------------
+    # Confusion Matrix
+    # -----------------------
+
+    cm = confusion_matrix(
+        labels,
+        predicted_labels
+    )
+
+
+    np.save(
+        REPORT_DIR / "confusion_matrix.npy",
+        cm
+    )
+
+
+    print("Evaluation completed.")
+    print(metrics)
+
+
+
+if __name__ == "__main__":
+    main()
